@@ -1,0 +1,114 @@
+@import "tailwindcss";
+
+/* ============================================================
+   SANAYA design tokens — two personalities.
+   PUBLIC: premium, elegant, immersive (dark + champagne).
+   PORTAL: clean, fast, operational (light + blue).
+   Fonts use robust system/Georgia stacks so the build is fully
+   offline-safe. Upgrade path: swap in a web font via next/font.
+   ============================================================ */
+@theme {
+  /* Public (premium) */
+  --color-ink: #0b0b0f;
+  --color-ink-soft: #14141c;
+  --color-ink-line: #262633;
+  --color-ivory: #f6f2e9;
+  --color-champagne: #cba95f;
+  --color-champagne-soft: #e4cf9c;
+  --color-muted: #9c988c;
+
+  /* Portal (operational) */
+  --color-canvas: #f6f7f9;
+  --color-surface: #ffffff;
+  --color-line: #e4e7ec;
+  --color-line-soft: #f0f2f5;
+  --color-brand: #2563eb;
+  --color-brand-ink: #1d4ed8;
+  --color-heading: #0f172a;
+  --color-body: #374151;
+  --color-subtle: #6b7280;
+
+  /* Status palette (shared) */
+  --color-status-grey: #64748b;
+  --color-status-amber: #d97706;
+  --color-status-blue: #2563eb;
+  --color-status-indigo: #4f46e5;
+  --color-status-purple: #7c3aed;
+  --color-status-green: #16a34a;
+  --color-status-red: #dc2626;
+
+  /* shadcn-style semantic tokens — mapped onto the portal (operational)
+     palette so copy-pasted shadcn/ui components render correctly. Reused by
+     any component that speaks bg-primary / bg-card / text-muted-foreground /
+     border-border / bg-background instead of SANAYA's raw tokens. */
+  --color-background: #f6f7f9;        /* = canvas  */
+  --color-foreground: #0f172a;        /* = heading */
+  --color-card: #ffffff;              /* = surface */
+  --color-card-foreground: #0f172a;
+  --color-primary: #2563eb;           /* = brand   */
+  --color-primary-foreground: #ffffff;
+  --color-muted-foreground: #6b7280;  /* = subtle  */
+  --color-border: #e4e7ec;            /* = line    */
+
+  --font-display: Georgia, "Times New Roman", "Cambria", serif;
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+
+  --radius-card: 14px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: var(--font-sans);
+  color: var(--color-body);
+  background: var(--color-canvas);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+.font-display {
+  font-family: var(--font-display);
+  letter-spacing: -0.01em;
+}
+
+/* Respect reduced motion everywhere. */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+/* Accessible focus ring for the whole app. */
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Subtle rise-in used by the public site (guarded by reduced-motion above). */
+@keyframes sanaya-rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.animate-rise {
+  animation: sanaya-rise 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+}

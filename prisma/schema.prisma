@@ -1,0 +1,285 @@
+// SANAYA domain model — single source of truth for persistence.
+// SQLite (local, self-contained). Enums are NOT native in SQLite/Prisma, so
+// status/role/type vocabularies are enforced by Zod in src/lib/contract.ts.
+// List-like fields (amenities, suitableEvents, services) are stored as JSON strings.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ---------- Tenancy & identity ----------
+
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  type      String   @default("PARTNER") // PARTNER | SANAYA (house org)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users    User[]
+  venues   Venue[]
+  bookings Booking[]
+  clients  Client[]
+  partner  Partner?
+}
+
+model User {
+  id             String   @id @default(cuid())
+  email          String   @unique
+  name           String
+  passwordHash   String
+  role           String   @default("PARTNER_STAFF") // see contract.ts Role
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id])
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+// ---------- Partner CRM ----------
+
+model Partner {
+  id             String   @id @default(cuid())
+  organizationId String   @unique
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  companyName    String
+  partnerType    String   @default("VENUE") // VENUE|HOTEL|CATERING|AV|STYLING|ENTERTAINMENT|PHOTOGRAPHY|TRANSPORTATION|RENTAL
+  contactName    String?
+  contactEmail   String?
+  contactPhone   String?
+  commissionRate Float?
+  notes          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+// ---------- Venues ----------
+
+model Venue {
+  id             String   @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  name           String
+  slug           String   @unique
+  location       String
+  venueType      String   // BALLROOM|GARDEN|HOTEL|CONFERENCE|RESORT|RESTAURANT|EXHIBITION|OUTDOOR
+  indoorOutdoor  String   @default("INDOOR") // INDOOR|OUTDOOR|BOTH
+  capacity       Int
+  description    String?
+  heroImage      String?
+  gallery        String   @default("[]") // JSON string[]
+  amenities      String   @default("[]") // JSON string[]
+  suitableEvents String   @default("[]") // JSON string[] of EventType
+  published      Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  spaces    VenueSpace[]
+  inquiries Inquiry[]
+  bookings  Booking[]
+}
+
+model VenueSpace {
+  id        String   @id @default(cuid())
+  venueId   String
+  venue     Venue    @relation(fields: [venueId], references: [id], onDelete: Cascade)
+  name      String
+  capacity  Int
+  spaceType String?  // BALLROOM|GARDEN|CONFERENCE|VIP
+  createdAt DateTime @default(now())
+
+  bookings Booking[]
+}
+
+// ---------- Clients & inquiries ----------
+
+model Client {
+  id             String   @id @default(cuid())
+  name           String
+  email          String
+  phone          String?
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id])
+  createdAt      DateTime @default(now())
+
+  inquiries Inquiry[]
+  events    Event[]
+}
+
+model Inquiry {
+  id              String   @id @default(cuid())
+  reference       String   @unique // EVT-2026-00128
+  eventType       String
+  eventDate       DateTime
+  altDate         DateTime?
+  guestCount      Int
+  location        String?
+  venuePreference String   @default("RECOMMEND") // SELECT|RECOMMEND|HAVE_OWN
+  venueId         String?
+  venue           Venue?   @relation(fields: [venueId], references: [id])
+  services        String   @default("[]") // JSON string[]
+  budgetRange     String?
+  contactName     String
+  contactEmail    String
+  contactPhone    String?
+  message         String?
+  status          String   @default("NEW") // NEW|REVIEWING|CONVERTED|ARCHIVED
+  clientId        String?
+  client          Client?  @relation(fields: [clientId], references: [id])
+  eventId         String?
+  event           Event?   @relation(fields: [eventId], references: [id])
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// ---------- Events, bookings & workflow ----------
+
+model Event {
+  id          String   @id @default(cuid())
+  name        String
+  eventType   String
+  eventDate   DateTime
+  guestCount  Int
+  budget      Float?
+  coordinator String?
+  notes       String?
+  clientId    String?
+  client      Client?  @relation(fields: [clientId], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  inquiries Inquiry[]
+  bookings  Booking[]
+  services  EventService[]
+  timeline  EventTimeline[]
+}
+
+model Booking {
+  id             String   @id @default(cuid())
+  reference      String   @unique
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  eventId        String
+  event          Event    @relation(fields: [eventId], references: [id])
+  venueId        String?
+  venue          Venue?   @relation(fields: [venueId], references: [id])
+  venueSpaceId   String?
+  venueSpace     VenueSpace? @relation(fields: [venueSpaceId], references: [id])
+  status         String   @default("INQUIRY") // see contract.ts BookingStatus
+  requirements   String   @default("{}") // JSON: catering/setup/av/etc.
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  statusHistory BookingStatusHistory[]
+  payments      Payment[]
+  documents     Document[]
+  messages      Message[]
+}
+
+model BookingStatusHistory {
+  id         String   @id @default(cuid())
+  bookingId  String
+  booking    Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  fromStatus String?
+  toStatus   String
+  actorId    String?
+  reason     String?
+  createdAt  DateTime @default(now())
+}
+
+// ---------- Services ----------
+
+model Service {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  category  String   // CATERING|STYLING|STAGE|LIGHTING|SOUND|ENTERTAINMENT|PHOTOGRAPHY|VIDEOGRAPHY|...
+  createdAt DateTime @default(now())
+
+  events EventService[]
+}
+
+model EventService {
+  id        String   @id @default(cuid())
+  eventId   String
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  serviceId String
+  service   Service  @relation(fields: [serviceId], references: [id])
+  notes     String?
+
+  @@unique([eventId, serviceId])
+}
+
+// ---------- Operations: payments, documents, comms ----------
+
+model Payment {
+  id           String   @id @default(cuid())
+  bookingId    String
+  booking      Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  expected     Float
+  deposit      Float    @default(0)
+  amountPaid   Float    @default(0)
+  dueDate      DateTime?
+  status       String   @default("UNPAID") // UNPAID|PARTIALLY_PAID|PAID|OVERDUE
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Document {
+  id         String   @id @default(cuid())
+  bookingId  String
+  booking    Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  category   String   // CONTRACT|QUOTATION|INVOICE|RECEIPT|FLOOR_PLAN|BRIEF|MENU|PERMIT|OTHER
+  fileName   String
+  storageKey String   // controlled key; never a public URL
+  size       Int
+  mimeType   String
+  version    Int      @default(1)
+  status     String   @default("UPLOADED")
+  uploadedBy String?
+  createdAt  DateTime @default(now())
+}
+
+model Message {
+  id        String   @id @default(cuid())
+  bookingId String
+  booking   Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  authorId  String?
+  body      String
+  createdAt DateTime @default(now())
+}
+
+model Notification {
+  id             String   @id @default(cuid())
+  organizationId String?
+  userId         String?
+  type           String
+  title          String
+  body           String?
+  read           Boolean  @default(false)
+  createdAt      DateTime @default(now())
+}
+
+model EventTimeline {
+  id        String   @id @default(cuid())
+  eventId   String
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  time      String   // "8:00 AM"
+  label     String   // "Supplier Access"
+  sortOrder Int      @default(0)
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  actorId   String?
+  action    String
+  entity    String
+  entityId  String?
+  before    String?  // JSON
+  after     String?  // JSON
+  createdAt DateTime @default(now())
+}
