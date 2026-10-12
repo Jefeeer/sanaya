@@ -41,6 +41,8 @@
     color: var(--color-ink);
     -webkit-text-size-adjust: 100%;
     scroll-padding-top: 5rem;
+    /* iOS Safari ignores body-level clipping when deciding if the page can pan sideways */
+    overflow-x: clip;
   }
   body {
     overflow-x: clip;
